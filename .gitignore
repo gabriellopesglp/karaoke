@@ -1,0 +1,21 @@
+.DS_Store
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+
+# Frontend
+frontend/node_modules/
+frontend/.vite/
+
+# Build artifacts
+dist/
+
+# Logs and local caches
+*.log
+
+# Local environment files
+.env
+.env.*
+!.env.example

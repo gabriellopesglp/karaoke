@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Karaokê — configuração inicial</title>
+<style>
+  :root { --bg: #0a0a0a; --fg: #eceef5; --dim: #8b90a6; --accent: #e1e622; --card: #15161d; }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); margin: 0; min-height: 100vh;
+         display: grid; place-items: center; padding: 24px;
+         font: 16px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; }
+  .card { max-width: 420px; width: 100%; text-align: center; }
+  h1 { font-size: 26px; margin: 18px 0 6px; }
+  p.sub { color: var(--dim); margin: 0 0 26px; line-height: 1.5; }
+  .bar { background: #23242e; border-radius: 99px; height: 14px; overflow: hidden; }
+  .fill { background: var(--accent); height: 100%; width: 0%; border-radius: 99px;
+          transition: width .4s ease; }
+  .step { color: var(--dim); font-size: 14px; margin: 12px 0 0; min-height: 20px; }
+  .pct { font-size: 32px; font-weight: 800; margin: 18px 0 4px; font-variant-numeric: tabular-nums; }
+  button { background: var(--accent); color: #1a1405; border: 0; border-radius: 10px;
+           padding: 13px 26px; font-size: 16px; font-weight: 700; cursor: pointer; }
+  button.sec { background: #2a2a2a; color: var(--fg); border: 1px solid #444; }
+  .erro { color: #ff6b6b; background: #2a1518; border: 1px solid #5c2a30; border-radius: 10px;
+          padding: 12px 14px; font-size: 14px; margin: 16px 0; display: none; word-break: break-word; }
+  label.opt { display: flex; gap: 8px; align-items: center; justify-content: center;
+              color: var(--dim); font-size: 14px; margin: 18px 0 0; cursor: pointer; }
+  [hidden] { display: none !important; }
+</style>
+<body>
+<div class="card">
+  <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#e1e622" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>
+  <h1>Karaokê</h1>
+  <p class="sub">Na primeira vez, o app baixa o motor de separação de voz<br>(cerca de 2 GB, só desta vez).</p>
+
+  <div id="intro">
+    <button id="btnStart">Instalar e começar</button>
+    <label class="opt"><input type="checkbox" id="cb3"> incluir modo 3 faixas (backing vocals separados, +870 MB)</label>
+  </div>
+
+  <div id="prog" hidden>
+    <div class="pct" id="pct">0%</div>
+    <div class="bar"><div class="fill" id="fill"></div></div>
+    <p class="step" id="step">preparando…</p>
+  </div>
+
+  <div class="erro" id="erro"></div>
+  <p id="retryBox" hidden><button id="btnRetry" class="sec">Tentar de novo</button></p>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var pollTimer = null;
+
+  function show(s) {
+    // estado: {ready, running, pct, step, done, error}
+    if (s.error) {
+      $("prog").hidden = false;
+      $("intro").hidden = true;
+      $("erro").style.display = "block";
+      $("erro").textContent = "Não deu certo: " + s.error;
+      $("retryBox").hidden = false;
+      return;
+    }
+    $("erro").style.display = "none";
+    $("retryBox").hidden = true;
+    if (s.done && s.ready) { location.replace("/"); return; }
+    if (s.running) {
+      $("intro").hidden = true;
+      $("prog").hidden = false;
+      $("pct").textContent = Math.round(s.pct) + "%";
+      $("fill").style.width = s.pct + "%";
+      $("step").textContent = s.step || "…";
+    }
+  }
+
+  function refresh() {
+    fetch("/api/setup/status").then(function (r) { return r.json(); }).then(function (s) {
+      if (s.ready && !s.running && !s.error) { location.replace("/"); return; }
+      show(s);
+    }).catch(function () {});
+  }
+
+  function start() {
+    $("erro").style.display = "none";
+    $("retryBox").hidden = true;
+    fetch("/api/setup/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ extra3faixas: $("cb3").checked })
+    }).then(function (r) { return r.json(); }).then(function (s) {
+      if (s.error) show(s); else refresh();
+    });
+  }
+
+  $("btnStart").onclick = start;
+  $("btnRetry").onclick = start;
+
+  // Progresso em tempo real via WebSocket; se cair, polling de 2s cobre.
+  function connect() {
+    var proto = location.protocol === "https:" ? "wss://" : "ws://";
+    var sock = new WebSocket(proto + location.host + "/ws");
+    sock.onmessage = function (ev) {
+      try {
+        var m = JSON.parse(ev.data);
+        if (m.type === "setup") show(m);
+      } catch (e) {}
+    };
+    sock.onclose = function () {
+      if (!pollTimer) pollTimer = setInterval(refresh, 2000);
+      setTimeout(connect, 3000);
+    };
+    sock.onopen = function () {
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    };
+  }
+
+  connect();
+  refresh();
+})();
+</script>

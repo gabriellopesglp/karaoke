@@ -1,0 +1,10 @@
+# Dependências do venv de IA (download, separação de voz e alinhamento).
+# No Windows, instale o torch ANTES deste arquivo, do índice CPU:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+yt-dlp
+demucs
+openai-whisper
+stable-ts
+imageio-ffmpeg
+# Extra sob demanda do modo 3faixas (voz principal x backing vocals):
+#   pip install audio-separator[cpu]   (ou [gpu], conforme a plataforma)
